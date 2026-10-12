@@ -1,5 +1,5 @@
 (function () {
-  const STEPS = ["Culture", "Attributs", "Compétences", "Vocation", "Expérience", "Équipement", "Récompense", "Compagnie", "Fiche"];
+  const STEPS = ["Culture", "Attributs", "Compétences", "Vocation", "Expérience", "Équipement", "Récompense", "Background", "Fiche"];
   const KEY = "sda-draft";
   const TONGUE = {
     bardides: "Langue : le dalien.",
@@ -18,7 +18,8 @@
       callingFav: [], enemy: "", extra: {}, rewardId: "", rewardTarget: "",
       virtueId: "", virtueAttr: "", virtueFav: [], weapons: {}, armourId: "",
       shieldId: "", useful: ["", "", ""], usefulSkill: ["", "", ""],
-      patronId: "", refuge: "", heroes: "", extraBree: "", attachment: "", notes: ""
+      patronId: "", refuge: "", heroes: "", extraBree: "", attachment: "", notes: "",
+      childhood: "", youth: "", road: ""
     };
   }
 
@@ -247,7 +248,7 @@
     });
     html += "</div><h3>Deux particularités</h3><div class=\"choices\">";
     c.features.forEach(function (name) {
-      html += '<button type="button" class="' + (state.features.indexOf(name) >= 0 ? "active" : "") + '" data-action="feature" data-id="' + esc(name) + '">' + esc(name) + "</button>";
+      html += '<button type="button" class="' + (state.features.indexOf(name) >= 0 ? "active" : "") + '" data-action="feature" data-id="' + esc(name) + '" data-tip="' + esc(HELP.features[name] || "") + '">' + esc(name) + "</button>";
     });
     html += "</div>";
     html += '<div class="skill-table">';
@@ -268,7 +269,7 @@
     html += "</div>";
     const call = SDA.calling(state);
     if (!call) return html;
-    html += '<div class="panel"><p>' + esc(call.text) + "</p><p>Particularité : <strong>" + esc(call.feature) + "</strong></p><p class=\"hint\">Voie de l'Ombre : " + esc(call.shadow) + ".</p></div>";
+    html += '<div class="panel"><p>' + esc(call.text) + "</p><p>Particularité : <strong>" + tip(call.feature, HELP.features[call.feature]) + "</strong></p><p class=\"hint\">Voie de l'Ombre : " + esc(call.shadow) + ".</p></div>";
     html += "<h3>Deux compétences favorites</h3><div class=\"choices\">";
     call.skills.forEach(function (id) {
       const already = state.favCulture === id;
@@ -308,11 +309,12 @@
     let html = "<h2>Équipement</h2><p class=\"lead\">Une arme pour chaque compétence de combat possédée, plus une armure, un casque et un bouclier. Le niveau de vie " + esc(DATA.stdName[c.std]) + " limite les mailles et les grands boucliers. Objets utiles : " + DATA.usefulCount[c.std] + ". " + esc(DATA.mount[c.std]) + " Trésor de départ : " + DATA.treasure[c.std] + ".</p>";
     if (c.restriction) html += '<p class="hint">' + esc(c.restriction) + "</p>";
     SDA.combatSkillsWithRank(state).forEach(function (s) {
-      html += '<label class="field"><span>' + esc(s.name) + " — rang " + SDA.rank(state, s.id) + '</span><select data-action="weapon" data-skill="' + s.id + '">';
+      html += "<h3>" + esc(s.name) + " — rang " + SDA.rank(state, s.id) + "</h3><div class=\"choices\">";
       SDA.legalWeapons(state, s.id).forEach(function (w) {
-        html += '<option value="' + w.id + '"' + (state.weapons[s.id] === w.id ? " selected" : "") + ">" + esc(w.name) + " — dégâts " + w.dmg + ", blessure " + injuryText(w.injury) + ", charge " + w.load + (w.note ? " (" + esc(w.note) + ")" : "") + "</option>";
+        const detail = "Dégâts " + w.dmg + ", blessure " + injuryText(w.injury) + ", charge " + w.load + (w.note ? ". " + w.note : "");
+        html += '<button type="button" class="' + (state.weapons[s.id] === w.id ? "active" : "") + '" data-action="pick-weapon" data-skill="' + s.id + '" data-id="' + w.id + '" data-tip="' + esc(detail) + '">' + esc(w.name) + "</button>";
       });
-      html += "</select></label>";
+      html += "</div>";
     });
     html += '<div class="grid">';
     html += '<label class="field"><span>Armure</span><select data-action="armour">';
@@ -348,8 +350,11 @@
     if (reward) {
       html += '<p class="hint">' + esc(reward.text) + "</p>";
       if (reward.piece === "weapon") {
-        const weapons = SDA.loadout(state).weapons;
-        html += '<label class="field"><span>Arme</span><select data-action="rtarget">' + options(weapons.map(function (w) { return { id: w.id, name: w.name }; }), state.rewardTarget, "Choisir l'arme…") + "</select></label>";
+        html += "<h3>Arme concernée</h3><div class=\"choices\">";
+        SDA.loadout(state).weapons.forEach(function (w) {
+          html += '<button type="button" class="' + (state.rewardTarget === w.id ? "active" : "") + '" data-action="reward-weapon" data-id="' + w.id + '">' + esc(w.name) + "</button>";
+        });
+        html += "</div>";
       } else if (reward.piece === "armourhelm") {
         html += '<label class="field"><span>Pièce</span><select data-action="rtarget">' + options([{ id: "armour", name: "Armure" }, { id: "helm", name: "Casque" }], state.rewardTarget, "Choisir…") + "</select></label>";
       } else if (reward.piece === "loadpiece") {
@@ -382,18 +387,11 @@
     return html;
   }
 
-  function stepCompany() {
-    const f = SDA.fellowship(state);
-    let html = "<h2>Compagnie</h2><p class=\"lead\">Cette étape se fait ensemble. Le garant, le refuge et les attachements peuvent attendre la table : laissez vide ce qui n'est pas encore décidé. La Communauté de départ vaut le nombre de héros, plus le bonus du garant, plus 1 par Homme de Bree.</p>";
-    html += '<label class="field"><span>Garant</span><select data-action="patron">' + options(DATA.patrons, state.patronId, "Pas encore…") + "</select></label>";
-    const patron = DATA.patrons.find(function (p) { return p.id === state.patronId; });
-    if (patron) html += '<div class="panel"><p>Vocations proches : ' + esc(patron.callings) + ". Bonus de Communauté : +" + patron.bonus + ".</p><p>" + esc(patron.gift) + '</p><p class="hint">' + esc(patron.aim) + "</p></div>";
-    html += '<div class="grid"><label class="field"><span>Refuge</span><input data-bind="refuge" value="' + esc(state.refuge) + '" placeholder="Souvent Bree, au Poney Fringant"></label>';
-    html += '<label class="field"><span>Nombre de héros</span><input data-bind="heroes" inputmode="numeric" maxlength="2" value="' + esc(state.heroes) + '"></label>';
-    html += '<label class="field"><span>Autres Hommes de Bree</span><input data-bind="extraBree" inputmode="numeric" maxlength="1" value="' + esc(state.extraBree) + '"><span class="hint">En plus de ce héros, s\'il est de Bree.</span></label>';
-    html += '<label class="field"><span>Attachement</span><input data-bind="attachment" value="' + esc(state.attachment) + '" placeholder="Nom d\'un compagnon, si vous le souhaitez"></label></div>';
-    const fellowKnown = String(state.heroes).trim() !== "";
-    html += '<p class="points">Communauté indiquée : <strong>' + (fellowKnown ? f.total : "—") + "</strong> <span class=\"hint\">" + (fellowKnown ? "(" + f.heroes + " héros + " + f.bree + " de Bree + " + f.patron + " du garant)" : "Elle se calcule une fois le nombre de héros indiqué.") + "</span></p>";
+  function stepBackground() {
+    let html = "<h2>Background</h2><p class=\"lead\">Racontez d'où vient ce héros, et ce qui l'a décidé à prendre la route. Écrivez librement : quelques lignes suffisent.</p>";
+    html += '<label class="field"><span>Enfance</span><textarea data-bind="childhood" placeholder="Où il a grandi, auprès de qui, ce qui l\'a marqué enfant.">' + esc(state.childhood) + "</textarea></label>";
+    html += '<label class="field"><span>Adolescence</span><textarea data-bind="youth" placeholder="Ce qu\'il a appris, qui il a fréquenté, ce qu\'il a commencé à vouloir.">' + esc(state.youth) + "</textarea></label>";
+    html += '<label class="field"><span>Ce qui l\'a poussé à prendre la route</span><textarea data-bind="road" placeholder="L\'événement, la personne ou le choix qui l\'a fait partir.">' + esc(state.road) + "</textarea></label>";
     html += '<label class="field"><span>Notes</span><textarea data-bind="notes">' + esc(state.notes) + "</textarea></label>";
     return html;
   }
@@ -420,7 +418,6 @@
     const d = SDA.derived(state);
     const call = SDA.calling(state);
     const gear = SDA.loadout(state);
-    const fellow = SDA.fellowship(state);
     const reward = DATA.rewards.find(function (r) { return r.id === state.rewardId; });
     const virtue = DATA.virtues.find(function (v) { return v.id === state.virtueId; });
     function attrBox(id, label) {
@@ -460,7 +457,6 @@
       virtueLine += attr ? " (" + attr.name + ")" : "";
     }
     if (state.virtueId === "mastery") virtueLine += " (" + state.virtueFav.map(skillName).filter(Boolean).join(", ") + ")";
-    const patron = DATA.patrons.find(function (p) { return p.id === state.patronId; });
     const armourName = gear.armour ? gear.armour.name + " " + gear.armour.dice + "d" : "—";
     const close = state.rewardId === "close" ? state.rewardTarget : "";
 
@@ -482,12 +478,13 @@
       (gear.dwarfArmour ? '<p class="fine">Infatigable : la charge de l\'armure et du casque est réduite de moitié.</p>' : "") +
       '<p class="traits">Objets utiles : ' + esc(useful.join(" · ") || "—") + "</p>" +
       '<p class="traits">Monture : ' + esc(c ? DATA.mount[c.std] : "—") + " · Trésor " + esc(c ? DATA.treasure[c.std] : "—") + "</p>" +
-      '<div class="twocol"><div><h3>Récompense</h3><p>' + esc(rewardLine) + "</p><h3>Vertu</h3><p>" + esc(virtueLine) + "</p><h3>Avantage</h3><p>" + esc(c ? c.advantage + " — " + c.advantageText : "—") + "</p></div><div><h3>Voie de l'Ombre</h3><p>" + esc(call ? call.shadow : "—") + "</p><h3>Compagnie</h3><p>Garant : " + esc(patron ? patron.name : "—") + "<br>Refuge : " + esc(state.refuge || "—") + "<br>Communauté : " + (String(state.heroes).trim() ? fellow.total : "—") + "<br>Attachement : " + esc(state.attachment || "—") + "</p></div></div>" +
+      '<div class="twocol"><div><h3>Récompense</h3><p>' + esc(rewardLine) + "</p><h3>Vertu</h3><p>" + esc(virtueLine) + "</p><h3>Avantage</h3><p>" + esc(c ? c.advantage + " — " + c.advantageText : "—") + "</p></div><div><h3>Voie de l'Ombre</h3><p>" + esc(call ? call.shadow : "—") + "</p></div></div>" +
+      "<h3>Background</h3><p class=\"notes\"><b>Enfance.</b> " + esc(state.childhood || "—") + "</p><p class=\"notes\"><b>Adolescence.</b> " + esc(state.youth || "—") + "</p><p class=\"notes\"><b>La route.</b> " + esc(state.road || "—") + "</p>" +
       '<h3>Notes</h3><p class="notes">' + esc(state.notes || "") + "</p>" +
       '<p class="fine">Outil de table, non officiel. Le livre reste la référence. Les aides à l\'écran sont rédigées pour cet outil.</p></div></article>';
   }
 
-  const bodies = [stepCulture, stepAttrs, stepSkills, stepCalling, stepXp, stepGear, stepReward, stepCompany, stepSheet];
+  const bodies = [stepCulture, stepAttrs, stepSkills, stepCalling, stepXp, stepGear, stepReward, stepBackground, stepSheet];
 
   function render() {
     clampExtras();
@@ -539,6 +536,8 @@
     else if (action === "virtue") { state.virtueId = btn.dataset.id; state.virtueAttr = ""; state.virtueFav = []; }
     else if (action === "vattr") state.virtueAttr = btn.dataset.id;
     else if (action === "vfav") state.virtueFav = toggleList(state.virtueFav, btn.dataset.id, 2);
+    else if (action === "pick-weapon") state.weapons[btn.dataset.skill] = btn.dataset.id;
+    else if (action === "reward-weapon") state.rewardTarget = btn.dataset.id;
     else if (action === "print") { window.print(); return; }
     else if (action === "reset") {
       if (!window.confirm("Effacer cette fiche et recommencer ?")) return;
@@ -555,7 +554,6 @@
     else if (action === "suggest") { if (t.value) state.name = t.value; }
     else if (action === "family") { if (t.value) state.family = t.value; }
     else if (action === "enemy") state.enemy = t.value;
-    else if (action === "weapon") state.weapons[t.dataset.skill] = t.value;
     else if (action === "armour") state.armourId = t.value;
     else if (action === "shield") state.shieldId = t.value;
     else if (action === "uskill") state.usefulSkill[Number(t.dataset.i)] = t.value;
@@ -586,7 +584,7 @@
       save();
       return;
     }
-    if (bind === "name" || bind === "family" || bind === "refuge" || bind === "attachment" || bind === "notes") {
+    if (bind === "name" || bind === "family" || bind === "refuge" || bind === "attachment" || bind === "notes" || bind === "childhood" || bind === "youth" || bind === "road") {
       state[bind] = t.value;
       save();
     }

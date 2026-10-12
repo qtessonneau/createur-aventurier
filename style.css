@@ -48,6 +48,8 @@ h3 { margin: 18px 0 8px; font-size: 1rem; }
 .nav { margin-top: 14px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 12px; }
 .field { display: flex; flex-direction: column; gap: 4px; }
+.field + .field { margin-top: 12px; }
+.grid .field { margin-top: 0; }
 .field span { font-size: 0.85rem; color: var(--muted); }
 input, select, textarea {
   font: inherit;
