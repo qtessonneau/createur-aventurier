@@ -173,7 +173,7 @@
     html += "</div>";
     if (!c) return html;
     html += '<div class="panel"><p><strong>' + esc(c.name) + "</strong> — niveau de vie " + esc(DATA.stdName[c.std]) + ".</p>";
-    html += "<p>" + tip(c.advantage, c.advantageText) + " — " + esc(c.advantageText) + "</p>";
+    html += "<p>Avantage : " + tip(c.advantage, c.advantageText) + "</p>";
     if (c.restriction) html += '<p class="hint">' + esc(c.restriction) + "</p>";
     html += '<p class="hint">' + esc(TONGUE[c.id]) + "</p></div>";
     html += '<div class="grid">';
