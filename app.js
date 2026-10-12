@@ -398,7 +398,7 @@
 
   function stepSheet() {
     const issues = SDA.issues(state);
-    let html = "<h2>Fiche</h2><p class=\"lead\">La fiche tient sur deux pages. Téléchargez-la en PDF : dans la fenêtre qui s'ouvre, choisissez « Enregistrer au format PDF ».</p>";
+    let html = "<h2>Fiche</h2><p class=\"lead\">La fiche est en paysage, sur une page. Le background est sur une page à part. Téléchargez le tout en PDF : dans la fenêtre qui s'ouvre, choisissez « Enregistrer au format PDF ».</p>";
     html += '<div class="actions"><button type="button" class="btn" data-action="print">Télécharger en PDF</button></div>';
     if (issues.length) {
       html += '<div class="issues"><p>Avant de considérer la fiche terminée :</p><ul>';
@@ -420,28 +420,24 @@
     const gear = SDA.loadout(state);
     const reward = DATA.rewards.find(function (r) { return r.id === state.rewardId; });
     const virtue = DATA.virtues.find(function (v) { return v.id === state.virtueId; });
-    function attrBox(id, label) {
-      if (!a) return '<div class="abox"><b>' + label + '</b><strong>—</strong><small>SR —</small></div>';
-      return '<div class="abox"><b>' + label + "</b><strong>" + a[id] + "</strong><small>SR " + SDA.sr(state, id) + "</small></div>";
+    const close = state.rewardId === "close" ? state.rewardTarget : "";
+    function gems(n) {
+      let html = '<span class="gems">';
+      for (let i = 1; i <= 6; i++) html += '<i class="' + (i <= n ? "on" : "") + '"></i>';
+      return html + "</span>";
     }
-    function col(attr) {
+    function skillLines(attr) {
       return DATA.skills.filter(function (s) { return s.attr === attr; }).map(function (s) {
         const rk = c ? SDA.rank(state, s.id) : 0;
-        return '<div class="sline"><span>' + (SDA.isFavoured(state, s.id) ? "★ " : "") + esc(s.name) + "</span>" + pips(rk) + "<b>" + rk + "</b></div>";
+        return '<div class="sline"><i class="box' + (SDA.isFavoured(state, s.id) ? " on" : "") + '"></i><span>' + esc(s.name) + "</span>" + gems(rk) + "</div>";
       }).join("");
     }
-    let weapons = "";
-    if (!gear.weapons.length) weapons = "<tr><td colspan=\"5\">—</td></tr>";
-    gear.weapons.forEach(function (w) {
-      weapons += "<tr><td>" + esc(w.name) + "</td><td>" + esc(w.skill) + "</td><td>" + w.dmg + "</td><td>" + esc(injuryText(w.injury)) + "</td><td>" + w.load + (w.notes ? "<small>" + esc(w.notes) + "</small>" : "") + "</td></tr>";
-    });
-    const useful = [];
-    if (c) {
-      for (let i = 0; i < DATA.usefulCount[c.std]; i++) {
-        if (state.useful[i]) useful.push(state.useful[i] + (state.usefulSkill[i] ? " (" + skillName(state.usefulSkill[i]) + ")" : ""));
-      }
+    function attrBlock(id, title, sideLabel, sideValue) {
+      const value = a ? a[id] : "—";
+      const sr = a ? SDA.sr(state, id) : "—";
+      return '<section class="attr"><h3>' + title + '</h3><div class="attr-main"><b>' + value + '</b><small>Valeur</small></div><div class="attr-side"><span>SR <b>' + sr + "</b></span><span>" + sideLabel + " <b>" + sideValue + "</b></span></div></section>";
     }
-    let rewardLine = reward ? reward.name : "—";
+    let rewardLine = reward ? reward.name : "";
     if (reward && state.rewardTarget) {
       if (state.rewardTarget === "armour") rewardLine += " (armure)";
       else if (state.rewardTarget === "helm") rewardLine += " (casque)";
@@ -451,37 +447,70 @@
         if (w) rewardLine += " (" + w.name + ")";
       }
     }
-    let virtueLine = virtue ? virtue.name : "—";
+    let virtueLine = virtue ? virtue.name : "";
     if (state.virtueId === "mastery-attr" && state.virtueAttr) {
       const attr = DATA.attrs.find(function (item) { return item.id === state.virtueAttr; });
       virtueLine += attr ? " (" + attr.name + ")" : "";
     }
     if (state.virtueId === "mastery") virtueLine += " (" + state.virtueFav.map(skillName).filter(Boolean).join(", ") + ")";
-    const armourName = gear.armour ? gear.armour.name + " " + gear.armour.dice + "d" : "—";
-    const close = state.rewardId === "close" ? state.rewardTarget : "";
+    const rows = gear.weapons.slice();
+    while (rows.length < 4) rows.push(null);
+    const weaponRows = rows.map(function (w) {
+      if (!w) return "<tr><td></td><td></td><td></td><td></td><td></td></tr>";
+      return "<tr><td>" + esc(w.name) + "</td><td>" + w.dmg + "</td><td>" + esc(injuryText(w.injury)) + "</td><td>" + w.load + "</td><td>" + esc(w.notes || "") + "</td></tr>";
+    }).join("");
+    const useful = [];
+    if (c) {
+      for (let i = 0; i < DATA.usefulCount[c.std]; i++) {
+        if (state.useful[i]) useful.push(state.useful[i] + (state.usefulSkill[i] ? " (" + skillName(state.usefulSkill[i]) + ")" : ""));
+      }
+    }
+    const prot = function (dice, bonus) { return dice + "d" + (bonus ? " +2" : ""); };
+    const armourProt = gear.armour ? prot(gear.armour.dice, close === "armour") : "—";
+    const helmProt = prot(1, close === "helm");
+    const travel = useful.concat(c ? [DATA.mount[c.std]] : []).filter(Boolean).join(" · ") || "—";
 
-    return '<article class="sheet-page"><div class="sheet-inner"><header class="shead"><div><p class="eyebrow">L\'Anneau Unique — fiche d\'aventurier</p><h2>' + esc(SDA.displayName(state) || "Sans nom") + '</h2></div><div class="marks"><span>Vaillance <b>1</b></span><span>Sagesse <b>1</b></span></div></header>' +
-      '<div class="idline"><span>Culture <b>' + esc(c ? c.name : "—") + "</b></span><span>Vocation <b>" + esc(call ? call.name : "—") + "</b></span><span>Âge <b>" + esc(state.age || "—") + "</b></span><span>Niveau de vie <b>" + esc(c ? DATA.stdName[c.std] : "—") + "</b></span></div>" +
-      '<p class="traits">Particularités : ' + esc(SDA.features(state).join(" · ") || "—") + "</p>" +
-      '<div class="attrline">' + attrBox("corps", "Corps") + attrBox("coeur", "Cœur") + attrBox("esprit", "Esprit") +
-      '<div class="abox"><b>Endurance</b><strong>' + (d ? d.endurance : "—") + '</strong><small>actuelle</small></div>' +
-      '<div class="abox"><b>Espoir</b><strong>' + (d ? d.hope : "—") + '</strong><small>actuel</small></div>' +
-      '<div class="abox"><b>Parade</b><strong>' + (d ? d.parry : "—") + "</strong><small>+ bouclier " + (gear.parryMod ? "+" + gear.parryMod : "—") + " = " + (gear.parry == null ? "—" : gear.parry) + "</small></div></div>" +
-      '<div class="skillcols"><section><h3>Corps</h3>' + col("corps") + '</section><section><h3>Cœur</h3>' + col("coeur") + '</section><section><h3>Esprit</h3>' + col("esprit") + "</section></div>" +
-      '<div class="combatline">' + DATA.combat.map(function (s) {
-        const rk = c ? SDA.rank(state, s.id) : 0;
-        return "<span><b>" + esc(s.name) + "</b> " + rk + "</span>";
-      }).join("") + "</div>" +
-      '<p class="fine">Ombre 0 · Épuisé si Endurance ≤ charge ' + gear.total + " · Mélancolique si Ombre ≥ Espoir" + (c && c.id === "rodeurs" ? " · Hors Yule, l'Espoir récupéré en communauté ne dépasse pas la moitié du Cœur" : "") + "</p></div></article>" +
-      '<article class="sheet-page"><div class="sheet-inner"><h3>Attirail</h3><table><thead><tr><th>Arme</th><th>Compétence</th><th>Dégâts</th><th>Blessure</th><th>Charge</th></tr></thead><tbody>' + weapons + "</tbody></table>" +
-      '<div class="gearline"><span>Armure <b>' + esc(armourName) + (close === "armour" ? " +2" : "") + "</b></span><span>Casque <b>Heaume 1d" + (close === "helm" ? " +2" : "") + "</b></span><span>Bouclier <b>" + esc(gear.shield ? gear.shield.name + " +" + gear.parryMod : "—") + "</b></span><span>Charge <b>" + gear.total + "</b></span></div>" +
-      (gear.dwarfArmour ? '<p class="fine">Infatigable : la charge de l\'armure et du casque est réduite de moitié.</p>' : "") +
-      '<p class="traits">Objets utiles : ' + esc(useful.join(" · ") || "—") + "</p>" +
-      '<p class="traits">Monture : ' + esc(c ? DATA.mount[c.std] : "—") + " · Trésor " + esc(c ? DATA.treasure[c.std] : "—") + "</p>" +
-      '<div class="twocol"><div><h3>Récompense</h3><p>' + esc(rewardLine) + "</p><h3>Vertu</h3><p>" + esc(virtueLine) + "</p><h3>Avantage</h3><p>" + esc(c ? c.advantage + " — " + c.advantageText : "—") + "</p></div><div><h3>Voie de l'Ombre</h3><p>" + esc(call ? call.shadow : "—") + "</p></div></div>" +
-      "<h3>Background</h3><p class=\"notes\"><b>Enfance.</b> " + esc(state.childhood || "—") + "</p><p class=\"notes\"><b>Adolescence.</b> " + esc(state.youth || "—") + "</p><p class=\"notes\"><b>La route.</b> " + esc(state.road || "—") + "</p>" +
-      '<h3>Notes</h3><p class="notes">' + esc(state.notes || "") + "</p>" +
-      '<p class="fine">Outil de table, non officiel. Le livre reste la référence. Les aides à l\'écran sont rédigées pour cet outil.</p></div></article>';
+    return '<article class="sheet-page"><div class="sheet-inner">' +
+      '<div class="nom"><small>Nom</small><strong>' + esc(SDA.displayName(state) || "") + "</strong></div>" +
+      '<div class="idgrid">' +
+      '<div><small>Culture héroïque</small><b>' + esc(c ? c.name : "") + "</b></div>" +
+      '<div><small>Âge</small><b>' + esc(state.age || "") + "</b></div>" +
+      '<div><small>Niveau de vie</small><b>' + esc(c ? DATA.stdName[c.std] : "") + "</b></div>" +
+      '<div><small>Trésor</small><b>' + esc(c ? DATA.treasure[c.std] : "") + "</b></div>" +
+      '<div class="wide"><small>Particularités</small><b>' + esc(SDA.features(state).join(", ")) + "</b></div>" +
+      '<div class="span2"><small>Avantage culturel</small><b>' + esc(c ? c.advantage : "") + "</b></div>" +
+      '<div><small>Garant</small><b></b></div>' +
+      '<div class="span2"><small>Défauts</small><b></b></div>' +
+      '<div class="span2"><small>Vocation</small><b>' + esc(call ? call.name : "") + "</b></div>" +
+      '<div class="span3"><small>Voie de l\'Ombre</small><b>' + esc(call ? call.shadow : "") + "</b></div>" +
+      "</div>" +
+      '<div class="sheet-body"><div class="maincol">' +
+      '<div class="attrs">' +
+      attrBlock("corps", "Corps", "Endurance", d ? d.endurance : "—") +
+      attrBlock("coeur", "Cœur", "Espoir", d ? d.hope : "—") +
+      attrBlock("esprit", "Esprit", "Parade", d ? d.parry : "—") +
+      "</div>" +
+      '<h3 class="band">Compétences</h3><div class="skillcols"><section>' + skillLines("corps") + "</section><section>" + skillLines("coeur") + "</section><section>" + skillLines("esprit") + "</section></div>" +
+      '<div class="lower"><section><h3>Compétences de combat</h3>' + DATA.combat.map(function (s) {
+        return '<div class="sline"><span>' + esc(s.name) + "</span>" + gems(c ? SDA.rank(state, s.id) : 0) + "</div>";
+      }).join("") + '</section><section><h3>Récompenses <span class="rank">Vaillance 1</span></h3><p>' + esc(rewardLine) + '</p></section><section><h3>Vertus <span class="rank">Sagesse 1</span></h3><p>' + esc(virtueLine) + "</p></section></div>" +
+      '<div class="gear"><div><h3>Attirail de guerre</h3><table><thead><tr><th></th><th>Dégâts</th><th>Blessure</th><th>Charge</th><th>Notes</th></tr></thead><tbody>' + weaponRows + "</tbody></table></div>" +
+      '<div class="armour"><div class="piece"><small>Armure</small><b>' + esc(gear.armour ? gear.armour.name : "") + "</b><span>Protection " + armourProt + " · charge " + (gear.armour ? gear.armourLoad : "—") + "</span></div>" +
+      "<div class=\"piece\"><small>Casque</small><b>Heaume</b><span>Protection " + helmProt + " · charge " + (gear.dwarfArmour ? "incluse" : gear.helmLoad) + "</span></div>" +
+      "<div class=\"piece\"><small>Bouclier</small><b>" + esc(gear.shield ? gear.shield.name : "") + "</b><span>Parade +" + gear.parryMod + " · charge " + gear.shieldLoad + "</span></div>" +
+      (gear.dwarfArmour ? "<p>La charge de l'armure inclut le casque, déjà réduite de moitié.</p>" : "") +
+      "</div></div></div>" +
+      '<aside class="rail"><div class="blank"></div><div class="points3"><span><small>Points d\'aventure</small><b></b></span><span><small>Points de progression</small><b></b></span><span><small>Points de communauté</small><b></b></span></div>' +
+      '<div class="tracks"><div><small>Endurance actuelle</small><b>' + (d ? d.endurance : "—") + '</b><span>Charge ' + gear.total + '</span></div><div><small>Espoir actuel</small><b>' + (d ? d.hope : "—") + "</b><span>Ombre 0</span></div></div>" +
+      '<div class="mini"><span>Fatigue</span><span>Séquelles</span></div>' +
+      '<div class="states"><h3>États</h3><p><i class="box"></i> Épuisé</p><p><i class="box"></i> Mélancolique</p><p><i class="box"></i> Blessé</p><p class="wound">Blessure</p></div>' +
+      '<div class="travel"><h3>Équipement de voyage</h3><p>' + esc(travel) + "</p></div></aside></div>" +
+      '<p class="fine">Outil de table, non officiel. Le livre reste la référence.</p></div></article>' +
+      '<article class="bg-page"><div class="sheet-inner"><p class="eyebrow">Background</p><h2>' + esc(SDA.displayName(state) || "Sans nom") + "</h2>" +
+      "<h3>Enfance</h3><p class=\"notes\">" + esc(state.childhood || "") + "</p>" +
+      "<h3>Adolescence</h3><p class=\"notes\">" + esc(state.youth || "") + "</p>" +
+      "<h3>Ce qui l'a poussé à prendre la route</h3><p class=\"notes\">" + esc(state.road || "") + "</p>" +
+      "<h3>Notes</h3><p class=\"notes\">" + esc(state.notes || "") + "</p></div></article>";
   }
 
   const bodies = [stepCulture, stepAttrs, stepSkills, stepCalling, stepXp, stepGear, stepReward, stepBackground, stepSheet];
